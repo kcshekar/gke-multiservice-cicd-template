@@ -1,0 +1,10 @@
+.env
+.env.local
+.env.*.local
+*.key
+*.pem
+secrets/
+.turbo/
+node_modules/
+__pycache__/
+.pytest_cache/

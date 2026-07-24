@@ -1,0 +1,22 @@
+# cat <<EOF | kubectl apply -f -
+apiVersion: cert-manager.io/v1
+kind: Issuer
+metadata:
+  name: letsencrypt-staging
+  namespace: your-app-namespace
+spec:
+  acme:
+    # Use Let's Encrypt development environment
+    server: https://acme-v02.api.letsencrypt.org/directory
+    # ⚠️ Replace with your actual email
+    email: your-email@example.com
+    privateKeySecretRef:
+      # Secret name to store the ACME account's private key
+      name: letsencrypt-staging-key
+    solvers:
+      # Use the HTTP-01 challenge for verification
+      - http01:
+          ingress:
+            name: common-ingress-staging # Important: Use 'ingress.yaml->metadata->name'
+            # class: gce # Important: Use 'gce' as the ingress class for GKE Ingress
+            # EOF
