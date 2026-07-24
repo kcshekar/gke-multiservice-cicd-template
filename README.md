@@ -36,33 +36,35 @@ and HTTPS via cert-manager + Let's Encrypt.
 
 ## Architecture
 
+```
 GitHub Push / PR
-│
-▼
+   │
+   ▼
 ┌─────────────────────────────────┐
 │ build.yml                       │
 │ lint → test → build → audit     │
 └─────────────────┬───────────────┘
-│ (on merge to main)
-▼
+                   │ (on merge to main)
+                   ▼
 ┌─────────────────────────────────┐
 │ deploy.yml                      │
 │ resolve-env                     │
 │                                 │
-│ ▼                               │
+│   ▼                             │
 │ build & push (matrix)           │
 │ ├── service-1                   │
 │ ├── service-2                   │
 │ ├── ai-engine (Python)          │
 │ └── web (Next.js)               │
 │                                 │
-│ ▼                               │
+│   ▼                             │
 │ deploy to GKE                   │
 │ ├── sync secrets                │
 │ ├── kustomize build             │
 │ ├── kubectl apply               │
 │ └── verify rollout              │
 └─────────────────────────────────┘
+```
 
 ---
 
@@ -202,27 +204,29 @@ Easier to read and audit.
 
 ## Folder structure
 
+```
 .
 ├── .github/
-│ └── workflows/
-│ ├── build.yml # PR pipeline
-│ └── deploy.yml # Deploy pipeline
+│   └── workflows/
+│       ├── build.yml        # PR pipeline
+│       └── deploy.yml       # Deploy pipeline
 ├── infrastructure/
-│ └── k8s/
-│ ├── base/
-│ │ ├── kustomization.yaml
-│ │ └── ingress/
-│ │ ├── ingress.yml
-│ │ ├── issuer.yml
-│ │ └── secret.yml
-│ └── overlays/
-│ ├── staging/
-│ └── production/
+│   └── k8s/
+│       ├── base/
+│       │   ├── kustomization.yaml
+│       │   └── ingress/
+│       │       ├── ingress.yml
+│       │       ├── issuer.yml
+│       │       └── secret.yml
+│       └── overlays/
+│           ├── staging/
+│           └── production/
 ├── docs/
-│ └── setup-guide.md
+│   └── setup-guide.md
 ├── .env.example
 ├── .gitignore
 └── README.md
+```
 
 ---
 
