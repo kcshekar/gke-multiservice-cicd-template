@@ -1,0 +1,59 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: your-app-staging
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/ingress
+  - ../../components/external-secrets
+
+images:
+  - name: app
+    newName: us-central1-docker.pkg.dev/your-project/your-repo/app
+    newTag: staging # the deploy workflow replaces this with the commit SHA
+
+patches:
+  - patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: app
+        annotations:
+          kubernetes.io/ingress.global-static-ip-name: your-static-ip-staging
+          cert-manager.io/cluster-issuer: letsencrypt-staging
+      spec:
+        tls:
+          - hosts:
+              - staging.example.com
+            secretName: app-tls
+        rules:
+          - host: staging.example.com
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: app
+                      port:
+                        number: 80
+  - patch: |-
+      apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: app
+      spec:
+        minReplicas: 1
+        maxReplicas: 2
+  - patch: |-
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: app-secrets
+      spec:
+        dataFrom:
+          - extract:
+              key: your-app-staging-config

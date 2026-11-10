@@ -1,0 +1,56 @@
+name: CI (Node, pnpm, Turborepo)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+      verify:
+        description: The repo's verify commands, for example pnpm turbo run typecheck test
+        type: string
+        default: pnpm typecheck && pnpm test
+      postgres-image:
+        description: Empty means no Postgres. Password is ci-only, port 5432.
+        type: string
+        default: ""
+      redis-image:
+        description: Empty means no Redis. Port 6379.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: ${{ inputs.postgres-image }}
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: ${{ inputs.redis-image }}
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ inputs.node-version }}
+      - run: corepack enable
+      - run: pnpm install --frozen-lockfile
+      - run: ${{ inputs.verify }}

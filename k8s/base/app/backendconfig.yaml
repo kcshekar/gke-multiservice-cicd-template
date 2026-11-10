@@ -1,0 +1,11 @@
+# Explicit, because GKE copies the readinessProbe into the load balancer only if
+# pods exist when the Ingress is created, and ignores later probe changes.
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: app
+spec:
+  healthCheck:
+    type: HTTP
+    requestPath: /readyz
+    port: 8080

@@ -1,0 +1,55 @@
+name: CI (Python, uv)
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        required: true
+      working-directory:
+        type: string
+        default: "."
+      verify:
+        description: The repo's verify commands
+        type: string
+        default: uv run pytest -q
+      postgres-image:
+        description: Empty means no Postgres. Password is ci-only, port 5432.
+        type: string
+        default: ""
+      redis-image:
+        description: Empty means no Redis. Port 6379.
+        type: string
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    services:
+      postgres:
+        image: ${{ inputs.postgres-image }}
+        env:
+          POSTGRES_PASSWORD: ci-only
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: ${{ inputs.redis-image }}
+        ports: ["6379:6379"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          python-version: ${{ inputs.python-version }}
+      - run: uv sync --frozen
+      - run: ${{ inputs.verify }}

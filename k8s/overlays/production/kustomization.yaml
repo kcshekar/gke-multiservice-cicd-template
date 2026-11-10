@@ -1,0 +1,67 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: your-app
+
+resources:
+  - ../../base
+
+components:
+  - ../../components/ingress
+  - ../../components/external-secrets
+
+images:
+  - name: app
+    newName: us-central1-docker.pkg.dev/your-project/your-repo/app
+    newTag: production # the deploy workflow replaces this with the commit SHA
+
+patches:
+  - patch: |-
+      apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: app
+        annotations:
+          kubernetes.io/ingress.global-static-ip-name: your-static-ip-prod
+          cert-manager.io/cluster-issuer: letsencrypt-prod
+      spec:
+        tls:
+          - hosts:
+              - app.example.com
+            secretName: app-tls
+        rules:
+          - host: app.example.com
+            http:
+              paths:
+                - path: /
+                  pathType: Prefix
+                  backend:
+                    service:
+                      name: app
+                      port:
+                        number: 80
+  - patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: app
+      spec:
+        template:
+          spec:
+            containers:
+              - name: app
+                resources:
+                  requests:
+                    cpu: 500m
+                    memory: 1Gi
+                  limits:
+                    memory: 1Gi
+  - patch: |-
+      apiVersion: external-secrets.io/v1
+      kind: ExternalSecret
+      metadata:
+        name: app-secrets
+      spec:
+        dataFrom:
+          - extract:
+              key: your-app-prod-config

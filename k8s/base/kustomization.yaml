@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# One folder per service. To add one: copy app/, rename it in the copied files,
+# list the folder here, and add its route to the Ingress in each overlay.
+resources:
+  - namespace.yaml
+  - serviceaccount.yaml
+  - networkpolicy.yaml
+  - app
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: your-app
+    includeTemplates: true

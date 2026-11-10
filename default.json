@@ -1,0 +1,11 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared preset. Repos extend it with github>kcshekar/gke-multiservice-cicd-template",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits"
+  ],
+  "minimumReleaseAge": "7 days",
+  "internalChecksFilter": "strict"
+}

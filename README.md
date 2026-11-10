@@ -1,243 +1,70 @@
-# GKE Multi-Service CI/CD Pipeline Template
+# GKE multi-service CI/CD template
 
-A production-grade CI/CD pipeline template for deploying 
-multi-language microservices to Google Kubernetes Engine (GKE).
+Kubernetes manifests, shared GitHub Actions workflows and per-stack starting points for services on Google Kubernetes Engine.
 
-Supports Node.js, Bun, Next.js, and Python services in a 
-single monorepo — with automated testing, Docker builds, 
-Google Artifact Registry, Kustomize-based deployments, 
-and HTTPS via cert-manager + Let's Encrypt.
+- No keys in GitHub: deploys sign in with OIDC.
+- No secrets in git: cert-manager creates TLS Secrets, and External Secrets copies app config from Secret Manager.
+- Every action is pinned to a commit SHA, and Renovate keeps the pins current after a 7-day wait.
 
----
+## What's here
 
-## What this template includes
-
-**build.yml — Pull Request pipeline**
-- Lint + TypeScript type-checking
-- Node.js tests with real MongoDB + Valkey service containers
-- Python tests via Pytest + uv
-- Full monorepo build via Turborepo
-- Security audit (Node.js + Python dependencies)
-
-**deploy.yml — Push to main / Release pipeline**
-- Environment resolution (staging vs production)
-- Parallel Docker builds per service via matrix strategy
-- Push to Google Artifact Registry
-- Kustomize-based Kubernetes manifest generation
-- Secret sync from GitHub Secrets to Kubernetes
-- Automated rollout with health verification
-
-**Infrastructure**
-- GKE Ingress with GCE controller
-- TLS via cert-manager + Let's Encrypt
-- Kustomize overlays for staging and production
-
----
-
-## Architecture
-
-```
-GitHub Push / PR
-   │
-   ▼
-┌─────────────────────────────────┐
-│ build.yml                       │
-│ lint → test → build → audit     │
-└─────────────────┬───────────────┘
-                   │ (on merge to main)
-                   ▼
-┌─────────────────────────────────┐
-│ deploy.yml                      │
-│ resolve-env                     │
-│                                 │
-│   ▼                             │
-│ build & push (matrix)           │
-│ ├── service-1                   │
-│ ├── service-2                   │
-│ ├── ai-engine (Python)          │
-│ └── web (Next.js)               │
-│                                 │
-│   ▼                             │
-│ deploy to GKE                   │
-│ ├── sync secrets                │
-│ ├── kustomize build             │
-│ ├── kubectl apply               │
-│ └── verify rollout              │
-└─────────────────────────────────┘
+```text
+k8s/base/            Namespace, ServiceAccount, NetworkPolicy
+k8s/base/app/        one service: Deployment, Service, BackendConfig, HPA, PDB
+k8s/components/      ingress (GCE Ingress, HTTPS redirect, Let's Encrypt issuers)
+                     external-secrets (Secret Manager to a Kubernetes Secret)
+k8s/overlays/        staging, production: domains, replicas, resources, image tags
+.github/workflows/   reusable: ci-bun, ci-node-pnpm, ci-python-uv, security-scan,
+                     build-push, deploy-gke
+stacks/              nextjs, bun-hono, node-express-turbo, python-fastapi-uv,
+                     expo-react-native
+default.json         shared Renovate preset
 ```
 
----
+## Use the Kubernetes files
+1. Copy `k8s/` into your repo.
+2. Replace the placeholders: `your-app`, `your-project`, `your-repo`, `your-reader`, `your-static-ip`, `example.com`, `you@example.com`.
+3. Add a service by copying `k8s/base/app/`, renaming it, and listing it in `k8s/base/kustomization.yaml`. Add its route to the Ingress in each overlay.
+4. Follow [the setup guide](docs/setup-guide.md) once per cluster.
 
-## Services supported
+Your app must serve `GET /healthz` and `GET /readyz` on port 8080, as a non-root user.
 
-| Service | Runtime | Description |
-|---|---|---|
-| orchestrator-service | Node.js | Main backend service |
-| bridge-service | Node.js / Bun | Integration bridge |
-| ai-engine | Python 3.11 | AI/ML processing service |
-| web | Next.js | Frontend application |
+## Use the workflows
+Pin to a commit SHA of this repo, and bump it when you want a change.
 
----
+```yaml
+permissions:
+  contents: read
 
-## Prerequisites
-
-- GCP project with billing enabled
-- GKE cluster running
-- Google Artifact Registry repository created
-- kubectl installed and configured
-- Helm installed (for cert-manager)
-- Domain with DNS access
-
----
-
-## Quick start
-
-### Step 1 — Clone this template
-```bash
-git clone https://github.com/kcshekar/gke-multiservice-cicd-template
-cd gke-multiservice-cicd-template
+jobs:
+  verify:
+    uses: OWNER/gke-multiservice-cicd-template/.github/workflows/ci-bun.yml@COMMIT_SHA
+    with:
+      bun-version: "1.4.4"
+      postgres-image: postgres:16
+      verify: bun run typecheck && bun run test
+  scan:
+    uses: OWNER/gke-multiservice-cicd-template/.github/workflows/security-scan.yml@COMMIT_SHA
 ```
 
-### Step 2 — Configure GitHub Secrets
-Add these secrets to your GitHub repository
-(Settings → Secrets and variables → Actions):
+A deploy runs `build-push.yml` once per image, then `deploy-gke.yml`. Give the calling jobs `permissions: { id-token: write, contents: read }`.
 
-| Secret | Description |
-|---|---|
-| GCP_PROJECT_ID | Your GCP project ID |
-| GCP_SA_KEY | Service account JSON key |
-| GKE_CLUSTER | Your GKE cluster name |
-| GKE_REGION | GCP region (e.g. us-central1) |
-| GAR_REPOSITORY | Artifact Registry repo name |
-| APP_SECRETS | JSON of all app environment variables |
-| TURBO_TOKEN | Turborepo remote cache token (optional) |
-| TURBO_TEAM | Turborepo team name (optional) |
+## Use a stack
+Run the official generator named in `stacks/<stack>/README.md`, then apply the short list there. These are not project skeletons, because copied skeletons go stale.
 
-### Step 3 — Update deploy.yml
-Replace placeholder values in deploy.yml:
-- Service names to match your services
-- Dockerfile paths for each service
-- Namespace to match your app
+## Renovate
+Install the Renovate GitHub app on the repo and add this `renovate.json`:
 
-### Step 4 — Set up HTTPS on GKE
-Follow the detailed guide in docs/setup-guide.md
-
-**Critical order — do not skip steps:**
-1. Install cert-manager first
-2. Verify cert-manager is running
-3. Apply issuer
-4. Apply secrets
-5. Apply ingress last
-
-Skipping this order causes silent TLS failures
-with no useful error messages.
-
-### Step 5 — Deploy
-```bash
-# Staging — push to main branch
-git push origin main
-
-# Production — create a GitHub release
-gh release create v1.0.0
+```json
+{ "extends": ["github>OWNER/gke-multiservice-cicd-template"] }
 ```
-
----
-
-## How staging vs production works
-
-| Trigger | Environment |
-|---|---|
-| Push to main | Staging |
-| GitHub Release published | Production |
-
-Kustomize overlays in infrastructure/k8s/overlays/ 
-handle environment-specific configuration.
-
----
-
-## Key design decisions
-
-**Why Turborepo?**
-Monorepo build caching — only rebuilds services that changed.
-Significantly faster CI on large repos.
-
-**Why matrix strategy for Docker builds?**
-Builds all service images in parallel — cuts deploy time 
-proportionally to number of services.
-
-**Why Valkey instead of Redis in tests?**
-Valkey is the open-source Redis fork. Drop-in compatible,
-no licensing concerns.
-
-**Why uv for Python?**
-Significantly faster than pip. Deterministic installs
-via uv.lock. Built-in virtualenv management.
-
-**Why GCE Ingress instead of nginx-ingress?**
-Native GCP integration — automatically provisions 
-Google Cloud Load Balancer. Better for GKE on GCP.
-
-**Why Kustomize instead of Helm?**
-No templating language to learn. Plain YAML with overlays.
-Easier to read and audit.
-
----
-
-## Common issues
-
-**TLS certificate stuck in pending**
-→ cert-manager not fully running before issuer was applied.
-→ Reinstall cert-manager, wait for all pods Ready, reapply.
-
-**Ingress has no external IP after 10+ minutes**
-→ Static IP must be GLOBAL not regional.
-→ Check: gcloud compute addresses list
-
-**Build fails: bun.lock not found**
-→ Run bun install locally and commit bun.lock
-
-**Python tests fail in CI but pass locally**
-→ Check uv.lock is committed — uv sync --frozen 
-  requires the lockfile.
-
----
-
-## Folder structure
-
-```
-.
-├── .github/
-│   └── workflows/
-│       ├── build.yml        # PR pipeline
-│       └── deploy.yml       # Deploy pipeline
-├── infrastructure/
-│   └── k8s/
-│       ├── base/
-│       │   ├── kustomization.yaml
-│       │   └── ingress/
-│       │       ├── ingress.yml
-│       │       ├── issuer.yml
-│       │       └── secret.yml
-│       └── overlays/
-│           ├── staging/
-│           └── production/
-├── docs/
-│   └── setup-guide.md
-├── .env.example
-├── .gitignore
-└── README.md
-```
-
----
 
 ## Author
 
-Built by [Korpole Chandra Shekar](https://korpolechandrashekar.com)  
-Senior Software Engineer · Node.js · GKE · AI/LLM Pipelines  
-[LinkedIn](https://www.linkedin.com/in/chandra-shekar-korpole) · 
+Built by [Korpole Chandra Shekar](https://korpolechandrashekar.com)
+Senior Software Engineer · Node.js · GKE · AI/LLM Pipelines
+[LinkedIn](https://www.linkedin.com/in/chandra-shekar-korpole) ·
 [Portfolio](https://korpolechandrashekar.com)
-
----
 
 ## License
 

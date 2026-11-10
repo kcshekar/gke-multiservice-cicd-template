@@ -1,0 +1,31 @@
+# Overlays set the hosts, the static IP and the issuer.
+# GKE reads only the ingress.class annotation and ignores spec.ingressClassName.
+# cert-manager creates the TLS Secret. edit-in-place keeps the challenge on this
+# Ingress (one IP) and issues a temporary certificate, which ingress-gce needs.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+  annotations:
+    kubernetes.io/ingress.class: gce
+    kubernetes.io/ingress.allow-http: "true" # HTTP-01 needs port 80
+    kubernetes.io/ingress.global-static-ip-name: your-static-ip
+    cert-manager.io/cluster-issuer: letsencrypt-staging
+    acme.cert-manager.io/http01-edit-in-place: "true"
+    networking.gke.io/v1beta1.FrontendConfig: app
+spec:
+  tls:
+    - hosts:
+        - app.example.com
+      secretName: app-tls
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 80

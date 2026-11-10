@@ -1,0 +1,70 @@
+name: Deploy to GKE
+
+# Signs in with GitHub OIDC. Requires reviewers on the GitHub environment for production.
+# Apply needs the CRDs from docs/setup-guide.md to be installed in the cluster.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        description: GitHub environment, and the folder under k8s/overlays
+        type: string
+        required: true
+      namespace:
+        type: string
+        required: true
+      deployments:
+        description: Space-separated Deployment names to wait for
+        type: string
+        required: true
+      images:
+        description: Space-separated kustomize settings, name=fullImage:tag
+        type: string
+        required: true
+      workload-identity-provider:
+        type: string
+        required: true
+      service-account:
+        type: string
+        required: true
+      cluster:
+        type: string
+        required: true
+      location:
+        type: string
+        required: true
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ inputs.environment }}
+    env:
+      OVERLAY: k8s/overlays/${{ inputs.environment }}
+      IMAGES: ${{ inputs.images }}
+      NAMESPACE: ${{ inputs.namespace }}
+      DEPLOYMENTS: ${{ inputs.deployments }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ inputs.workload-identity-provider }}
+          service_account: ${{ inputs.service-account }}
+      - uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
+        with:
+          cluster_name: ${{ inputs.cluster }}
+          location: ${{ inputs.location }}
+      - name: Set image tags
+        working-directory: ${{ env.OVERLAY }}
+        # shellcheck disable=SC2086 # IMAGES is a space-separated list on purpose
+        run: kustomize edit set image $IMAGES
+      - name: Apply
+        run: kubectl apply -k "$OVERLAY"
+      - name: Wait for rollout
+        run: |
+          for d in $DEPLOYMENTS; do
+            kubectl -n "$NAMESPACE" rollout status "deployment/$d" --timeout=300s
+          done

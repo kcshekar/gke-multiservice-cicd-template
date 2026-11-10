@@ -1,0 +1,7 @@
+# The overlay's `namespace:` replaces this name.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: your-app
+  labels:
+    pod-security.kubernetes.io/enforce: restricted

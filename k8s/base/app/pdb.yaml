@@ -1,0 +1,10 @@
+# maxUnavailable rather than minAvailable, so a one-replica staging can still drain nodes.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: app
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: app
