@@ -59,8 +59,9 @@ jobs:
           location: ${{ inputs.location }}
       - name: Set image tags
         working-directory: ${{ env.OVERLAY }}
-        # shellcheck disable=SC2086 # IMAGES is a space-separated list on purpose
-        run: kustomize edit set image $IMAGES
+        run: |
+          # shellcheck disable=SC2086 # IMAGES is a space-separated list on purpose
+          kustomize edit set image $IMAGES
       - name: Apply
         run: kubectl apply -k "$OVERLAY"
       - name: Wait for rollout
