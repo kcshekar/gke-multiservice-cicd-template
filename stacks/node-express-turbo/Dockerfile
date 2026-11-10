@@ -1,6 +1,6 @@
 # Build from the monorepo root: docker build --build-arg APP=<package-name> -f <this file> .
 # Each service needs a `build` script that outputs dist/index.js.
-FROM node:22-slim AS build
+FROM node:26-slim AS build
 ARG APP
 WORKDIR /repo
 RUN corepack enable
@@ -12,7 +12,7 @@ WORKDIR /repo/out/full
 RUN cp -R ../json/node_modules . && pnpm turbo run build --filter="$APP"
 RUN pnpm --filter="$APP" deploy --prod /app
 
-FROM node:22-slim
+FROM node:26-slim
 WORKDIR /app
 ENV NODE_ENV=production PORT=8080
 COPY --from=build /app ./
